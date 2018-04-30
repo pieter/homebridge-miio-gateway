@@ -5,7 +5,8 @@ const capabilityMap = {
 	'cap:temperature': addTemperatureSensor,
 	'cap:motion': addMotionSensor,
 	'cap:illuminance': addIllumination,
-	'cap:battery-level': addBatteryLevel
+	'cap:battery-level': addBatteryLevel,
+	'cap:relative-humidity': addHumidity,
 }
 
 exports.init = function(service, characteristic) {
@@ -117,5 +118,22 @@ function addTemperatureSensor(device, accessory) {
 	device.temperature().then(temp => {
 		log.debug(`Received initial Temperature:`, temp);
 		temperatureLevel.updateValue(temp.value);
+	});
+}
+
+function addHumidity(device, accessory) {
+	log.debug("Adding Humidity service");
+
+  const service = accessory.findOrCreateService(Service.HumiditySensor, "Humidity");
+  const humidityLevel = service.getCharacteristic(Characteristic.CurrentRelativeHumidity);
+
+	device.on('relativeHumidityChanged', humidity => {
+		log.debug(`New Humidity:`, humidity);
+		humidityLevel.updateValue(humidity);
+	});
+
+	device.relativeHumidity().then(humidity => {
+		log.debug(`Received initial Humidity:`, humidity);
+		humidityLevel.updateValue(humidity);
 	});
 }
