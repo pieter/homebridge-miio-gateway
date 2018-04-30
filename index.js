@@ -143,10 +143,22 @@ XiaomiMiioGateway.prototype.addSwitch = function(device, accessory) {
   const service = accessory.findOrCreateService(Service.StatelessProgrammableSwitch, "Click");
   const switchEvent = service.getCharacteristic(Characteristic.ProgrammableSwitchEvent);
 
+	const actionMap = {
+		'click': Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS,
+		'double_click': Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS,
+		'long_click_press': Characteristic.ProgrammableSwitchEvent.LONG_PRESS
+	}
+	
 	device.on('action', event => {
 		this.log.debug(`Button clicked. Action: ${event.action}`);
 		// Force single press for now, since miio buttons seem unreliable
-		switchEvent.setValue(0);
+		
+		if (actionMap[event.actionMap]) {
+			switchEvent.setValue(actionMap[event.action]);
+		} else {
+			this.log.debug(`Action ${event.action} not implemented, doing nothing`);
+		}
+		
 	});
 }
 
