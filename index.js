@@ -61,37 +61,86 @@ XiaomiMiioGateway.prototype.discoverGateway = async function(config) {
 }
 
 XiaomiMiioGateway.prototype.addConnectedDevice = async function(device) {
+	this.log.debug("Found a device", device);
+
 	const accessory = this.findOrCreateAccessory(device);
-	
-	let hasServices = false;
+		
 	if (device.matches('cap:actions')) {
 		this.addSwitch(device, accessory);
-		hasServices = true;
-	} else if (device.matches('cap:temperature')) {
-		this.log.debug("Found a Temperature Sensor!", device)
-	} else if (device.matches('cap:motion')) {
-		this.addMotionSensor(device, accessory);
-		hasServices = true;
-	} else if (device.matches('cap:illuminance')) {
-		this.log.warn("Have illumination??");
-	} else {
-		this.log.warn("Found child device of unknown type", device.miioModel || device.model || device);
 	}
-
-	if (hasServices) {
+	
+	if (device.matches('cap:temperature')) {
+		this.log.debug("Found a Temperature Sensor, which is not supported right now");
+	} 
+	
+	if (device.matches('cap:motion')) {
+		this.addMotionSensor(device, accessory);
+	}
+	
+	if (device.matches('cap:illuminance')) {
+		this.addIllumination(device, accessory);
+	}
+	
+	if (device.matches('cap:battery-level')) {
+		this.addBatteryLevel(device, accessory);
+	}
+	
+	// Check if anything added a service; we have 1 service by default.
+	this.log.warn("Is real:", accessory.hasRealServices());
+	if (accessory.hasRealServices()) {
 		this.log.warn(`Got ${accessory.services.length} services for ${accessory.displayName}, adding it to HomeKit`);
 				
 		if (accessory.isNew) {
 			this.log("Accessory is new, registering it with HomeBridge");
 			this.api.registerPlatformAccessories("homebridge-miio-gateway", "XiaomiMiioGateway", [accessory]);
 		}	
+	} else {
+		this.log.warn(`Looks like we didn't add any services to this ${device.miioModel || device.model}, skipping it`);
 	}
 }
 
-XiaomiMiioGateway.prototype.addSwitch = function(device, accessory) {
-	this.log.debug("Found a switch", device);
+XiaomiMiioGateway.prototype.addIllumination = function(device, accessory) {
+	this.log.debug("Adding Light Sensor service");
 	
-  const service = accessory.getService(Service.StatelessProgrammableSwitch, "Click") || accessory.addService(Service.StatelessProgrammableSwitch, "Click");
+  const service = accessory.findOrCreateService(Service.LightSensor, "Light Sensor");
+  const lightLevel = service.getCharacteristic(Characteristic.CurrentAmbientLightLevel);
+	
+	device.on('illuminanceChanged', (newVal) => {
+		this.log.debug(`${accessory.displayName} illuminance changed`, newVal);
+		lightLevel.updateValue(newVal.value);
+	});
+
+	// Set initial illuminance
+	device.illuminance().then(x =>  {
+		this.log.debug(`Got initial illuminance for ${accessory.displayName}:`, x.value);
+		lightLevel.updateValue(x.value);
+	});
+}
+
+XiaomiMiioGateway.prototype.addBatteryLevel = function(device, accessory) {
+	this.log.debug("Adding Battery Level service");
+	
+  const service = accessory.findOrCreateService(Service.BatteryService, "Battery Level");
+  const batteryLevel = service.getCharacteristic(Characteristic.BatteryLevel);
+	service.getCharacteristic(Characteristic.ChargingState).updateValue(Characteristic.ChargingState.NOT_CHARGEABLE);
+
+	device.on('batteryLevelChanged', (newVal) => {
+		this.log.debug(`${accessory.displayName} battery level changed`, newVal);
+		batteryLevel.updateValue(newVal.value);
+	});
+
+	// Set initial illuminance
+	device.batteryLevel().then(x =>  {
+		this.log.debug(`Got initial battery level for ${accessory.displayName}:`, x);
+		batteryLevel.updateValue(x);
+	});
+}
+
+
+XiaomiMiioGateway.prototype.addSwitch = function(device, accessory) {
+	this.log.debug("Adding Switch service");
+	
+  const service = accessory.findOrCreateService(Service.StatelessProgrammableSwitch, "Click");
   const switchEvent = service.getCharacteristic(Characteristic.ProgrammableSwitchEvent);
 
 	device.on('action', event => {
@@ -99,23 +148,14 @@ XiaomiMiioGateway.prototype.addSwitch = function(device, accessory) {
 		// Force single press for now, since miio buttons seem unreliable
 		switchEvent.setValue(0);
 	});
-
-	return accessory;
 }
 
 XiaomiMiioGateway.prototype.addMotionSensor = function(device, accessory) {
-	this.log.debug("Found a Motion Sensor", device)
+	this.log.debug("Adding Motion Sensor service");
 
-  const service = accessory.getService(Service.MotionSensor, "Motion") || accessory.addService(Service.MotionSensor, "Motion");
+  const service = accessory.findOrCreateService(Service.MotionSensor, "Motion");
   const motionEvent = service.getCharacteristic(Characteristic.MotionDetected);
 
-	// console.dir(motionEvent);
-	for (const attr in motionEvent) {
-		console.log(attr);
-	}
-	
-	this.log.error("Current status: ", device.property('status'), device.status);
-	
 	device.on('movement', event => {
 		this.log.debug(`Motion Detected. Event: ${event}`);
 		// Force single press for now, since miio buttons seem unreliable
@@ -127,8 +167,6 @@ XiaomiMiioGateway.prototype.addMotionSensor = function(device, accessory) {
 		// Force single press for now, since miio buttons seem unreliable
 		motionEvent.updateValue(false);
 	});
-
-	return accessory;
 }
 
 XiaomiMiioGateway.prototype.findOrCreateAccessory = function(device, name, onInit) {
@@ -144,6 +182,14 @@ XiaomiMiioGateway.prototype.findOrCreateAccessory = function(device, name, onIni
 		accessory.isNew = true;
 	}
 
+	accessory.findOrCreateService = function(service, name) {
+		return this.getService(service, name) || accessory.addService(service, name);
+	}
+	
+	accessory.hasRealServices = function() {
+		return !!this.services.find(s => !(s instanceof Service.AccessoryInformation || s instanceof Service.BatteryService));
+	}
+	
 	// update serial number and stuff
 	accessory.getService(Service.AccessoryInformation)
 	  .setCharacteristic(Characteristic.Manufacturer, "Xiaomi")
