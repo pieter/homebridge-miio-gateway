@@ -150,7 +150,6 @@ XiaomiMiioGateway.prototype.addSwitch = function(device, accessory) {
 	
 	device.on('action', event => {
 		this.log.debug(`Button clicked. Action: ${event.action}`);
-		// Force single press for now, since miio buttons seem unreliable
 		
 		if (actionMap[event.actionMap]) {
 			switchEvent.setValue(actionMap[event.action]);
@@ -169,13 +168,11 @@ XiaomiMiioGateway.prototype.addMotionSensor = function(device, accessory) {
 
 	device.on('movement', event => {
 		this.log.debug(`Motion Detected. Event: ${event}`);
-		// Force single press for now, since miio buttons seem unreliable
 		motionEvent.updateValue(true);
 	});
 
 	device.on('inactivity', event => {
 		this.log.debug(`It's over now'`);
-		// Force single press for now, since miio buttons seem unreliable
 		motionEvent.updateValue(false);
 	});
 }
