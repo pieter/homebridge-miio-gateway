@@ -86,16 +86,15 @@ XiaomiMiioGateway.prototype.addConnectedDevice = async function(device) {
 	}
 	
 	// Check if anything added a service; we have 1 service by default.
-	this.log.warn("Is real:", accessory.hasRealServices());
 	if (accessory.hasRealServices()) {
-		this.log.warn(`Got ${accessory.services.length} services for ${accessory.displayName}, adding it to HomeKit`);
+		this.log.debug(`Got ${accessory.services.length} services for ${accessory.displayName}, adding it to HomeKit`);
 				
 		if (accessory.isNew) {
 			this.log("Accessory is new, registering it with HomeBridge");
 			this.api.registerPlatformAccessories("homebridge-miio-gateway", "XiaomiMiioGateway", [accessory]);
 		}	
 	} else {
-		this.log.warn(`Looks like we didn't add any services to this ${device.miioModel || device.model}, skipping it`);
+		this.log.debug(`Looks like we didn't add any services to this ${device.miioModel || device.model}, skipping it`);
 	}
 }
 
