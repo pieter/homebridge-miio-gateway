@@ -79,7 +79,7 @@ function addSwitch(device, accessory) {
 	device.on('action', event => {
 		log.debug(`Button clicked. Action: ${event.action}`);
 		
-		if (actionMap[event.actionMap]) {
+		if (actionMap[event.action]) {
 			switchEvent.setValue(actionMap[event.action]);
 		} else {
 			log.debug(`Action ${event.action} not implemented, doing nothing`);
