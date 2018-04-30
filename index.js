@@ -70,7 +70,7 @@ XiaomiMiioGateway.prototype.addConnectedDevice = async function(device) {
 	}
 	
 	if (device.matches('cap:temperature')) {
-		this.log.debug("Found a Temperature Sensor, which is not supported right now");
+		this.addTemperatureSensor(device, accessory);
 	} 
 	
 	if (device.matches('cap:motion')) {
@@ -174,6 +174,23 @@ XiaomiMiioGateway.prototype.addMotionSensor = function(device, accessory) {
 	device.on('inactivity', event => {
 		this.log.debug(`It's over now'`);
 		motionEvent.updateValue(false);
+	});
+}
+
+XiaomiMiioGateway.prototype.addTemperatureSensor = function(device, accessory) {
+	this.log.debug("Adding Temperature Sensor service");
+
+  const service = accessory.findOrCreateService(Service.TemperatureSensor, "Temperature");
+  const temperatureLevel = service.getCharacteristic(Characteristic.CurrentTemperature);
+
+	device.on('temperatureChanged', temp => {
+		this.log.debug(`New Temperature:`, temp);
+		temperatureLevel.updateValue(temp.value);
+	});
+
+	device.temperature().then(temp => {
+		this.log.debug(`Received initial Temperature:`, temp);
+		temperatureLevel.updateValue(temp.value);
 	});
 }
 
