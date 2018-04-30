@@ -7,6 +7,7 @@ const capabilityMap = {
 	'cap:illuminance': addIllumination,
 	'cap:battery-level': addBatteryLevel,
 	'cap:relative-humidity': addHumidity,
+	'cap:switchable-power': addSwitchablePower,
 }
 
 exports.init = function(service, characteristic) {
@@ -137,3 +138,44 @@ function addHumidity(device, accessory) {
 		humidityLevel.updateValue(humidity);
 	});
 }
+
+function addSwitchablePower(device, accessory) {
+	if (device.model == 'lumi.gateway.v3.light') {
+		log.warn("Skipping setting up GatewayLight!");
+		return;
+	}
+
+	log.debug("Adding Power Plug");
+
+  const service = accessory.findOrCreateService(Service.Outlet, "Outlet");
+  const onState = service.getCharacteristic(Characteristic.On);
+
+	// Don't know, so assume true
+  service.updateCharacteristic(Characteristic.OutletInUse, true);
+	
+	let currentValue = false;
+	
+	onState.on('get', (cb) => {
+		cb(null, currentValue);
+	});
+	
+	onState.on('set', async (val, cb) => {
+		log.debug("Setting power to:", val);
+		await device.changePower(val);
+		currentValue = val;
+		cb();
+	});
+	
+	device.on('powerChanged', async newVal => {
+		log.debug(`New Power State:`, newVal);
+		currentValue = newVal;
+		onState.updateValue(newVal);
+	});
+
+	device.power().then(initialPower => {
+		log.debug(`Received initial Power:`, initialPower);
+		currentValue = initialPower;
+		onState.updateValue(initialPower);
+	});
+}
+
