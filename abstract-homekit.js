@@ -1,3 +1,5 @@
+const { createGatewayLight } = require('./gateway-light');
+
 let Service, Characteristic, log;
 
 const capabilityMap = {
@@ -19,6 +21,13 @@ exports.setLog = function(_log) { log = _log; }
 
 exports.decorateAccessory = function(accessory, device) {
 	log.debug("Found a device", device);
+	
+	if (device.matches('type:light', 'cap:switchable-power')) {
+		log.error("Creating custom light bulb...");
+		createGatewayLight(device, accessory, switchPower, Service, Characteristic, log);
+		return;
+	}
+	
 	for (const cap in capabilityMap) {
 		if (device.matches(cap)) {
 			capabilityMap[cap](device, accessory);
@@ -79,7 +88,7 @@ function addSwitch(device, accessory) {
 	device.on('action', event => {
 		log.debug(`Button clicked. Action: ${event.action}`);
 		
-		if (actionMap[event.action]) {
+		if (actionMap[event.action] !== undefined) {
 			switchEvent.setValue(actionMap[event.action]);
 		} else {
 			log.debug(`Action ${event.action} not implemented, doing nothing`);
@@ -140,42 +149,55 @@ function addHumidity(device, accessory) {
 }
 
 function addSwitchablePower(device, accessory) {
-	if (device.model == 'lumi.gateway.v3.light') {
-		log.warn("Skipping setting up GatewayLight!");
-		return;
-	}
-
 	log.debug("Adding Power Plug");
 
-  const service = accessory.findOrCreateService(Service.Outlet, "Outlet");
+  const service = accessory.findOrCreateService(Service.Outlet, "Plug");
   const onState = service.getCharacteristic(Characteristic.On);
 
 	// Don't know, so assume true
   service.updateCharacteristic(Characteristic.OutletInUse, true);
-	
-	let currentValue = false;
-	
-	onState.on('get', (cb) => {
-		cb(null, currentValue);
-	});
-	
-	onState.on('set', async (val, cb) => {
-		log.debug("Setting power to:", val);
-		await device.changePower(val);
-		currentValue = val;
-		cb();
-	});
-	
-	device.on('powerChanged', async newVal => {
-		log.debug(`New Power State:`, newVal);
-		currentValue = newVal;
-		onState.updateValue(newVal);
-	});
+	switchPower(onState, device);
+}
 
-	device.power().then(initialPower => {
-		log.debug(`Received initial Power:`, initialPower);
-		currentValue = initialPower;
-		onState.updateValue(initialPower);
+function switchPower(onState, device) {
+	createTwoWayBinding({
+		device: device,
+		characteristic: onState,
+		eventName: 'powerChanged',
+		toggleFn: (val) => device.changePower(val),
+		initialFn: () => device.power()
 	});
 }
 
+function createTwoWayBinding({device, characteristic, eventName, toggleFn, initialFn, eventMap = (x => x)}) {
+	let currentValue = false;
+	
+	characteristic.on('get', (cb) => {
+		cb(null, currentValue);
+	});
+	
+	characteristic.on('set', async (val, cb) => {
+		if (val === currentValue) {
+			return cb();
+		}
+		
+		log.debug(`Setting ${eventName} to:`, val);
+		currentValue = val;
+		await toggleFn(val);
+		cb();
+	});
+	
+	device.on(eventName, async event => {
+		const newVal = eventMap(event);
+		log.debug(`New ${eventName} State:`, newVal);		
+		characteristic.updateValue(newVal);
+		currentValue = newVal;
+	});
+
+	initialFn().then(initialEvent => {
+		const initialValue = eventMap(initialEvent);
+		log.debug(`Received initial ${eventName}:`, initialValue);
+		currentValue = initialValue;
+		characteristic.updateValue(initialValue);
+	});
+}
