@@ -25,7 +25,7 @@ This plugin currently supports:
  * Power Plugs
  * Gateway light
 
-### Configurations
+## Configuration
 
 First you'll need to enable local access in the Xiaomi Mi Home app. Here's how that works on iOS:
 
@@ -38,18 +38,18 @@ First you'll need to enable local access in the Xiaomi Mi Home app. Here's how t
 Now add the plugin to your homebridge config:
 
 ```json
-    "platforms": [{
-        "platform": "XiaomiMiioGateway",
-        "gateways": [
-        	{
-						"address": "192.168.1.XXX",
-						"token": "0ab9152c80b94827960db8c6ef49ee39"
-					}
-        ]
-    },
-    ...
+"platforms": [
+  {
+    "platform": "XiaomiMiioGateway",
+    "gateways": [
+      {
+        "address": "192.168.1.XXX",
+        "token": "0ab9152c80b94827960db8c6ef49ee39"
+      }
     ]
-
+  },
+  ...
+]
 ````
 
 Check out the plugin locally, and start homebridge. It should show the found devices in the log. Use `homebridge -D` to get more debug output.
