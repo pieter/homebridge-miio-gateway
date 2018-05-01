@@ -29,7 +29,7 @@ function addBrightnessControls(device, service) {
 	// Complicated logic here -- we need to sync both the power state
 	// and the brightness...
 	onState.on('get', async (cb) => {
-		cb(null, await currentBrightness > 0);
+		cb(null, (await device.brightness()) > 0);
 	});
 
 	onState.on('set', async (val, cb) => {
