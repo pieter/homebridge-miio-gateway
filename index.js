@@ -2,6 +2,7 @@ const miio = require('miio');
 let Accessory, Service, Characteristic, UUIDGen;
 
 const abstractHomekit = require('./abstract-homekit');
+const DEFAULT_POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 module.exports = function(homebridge) {
   // Accessory must be created from PlatformAccessory Constructor
@@ -24,6 +25,7 @@ function XiaomiMiioGateway(log, config, api) {
 	
   this.log = log;
   this.config = config || {};
+	this.config.pollInterval = this.config.pollInterval || DEFAULT_POLL_INTERVAL;
   this.accessories = {};
   this.api = api;
 
@@ -57,16 +59,27 @@ XiaomiMiioGateway.prototype.discoverGateway = async function(config) {
 	}
 
 	this.log.debug("Looking for connected devices...");
-	this.addConnectedDevice(device);
+	const accessory = this.addConnectedDevice(device);
 
 	for (const child of device.children()) {
 		this.addConnectedDevice(child);
 	}
+	
+	// Set up regular polling, since otherwise the gateway might time out
+	this.log.debug("Polling with interval", this.config.pollInterval);
+	setInterval(() =>
+		device.poll()
+			.then(() => accessory.updateReachability(true))
+			.catch(er => {
+				this.log.warn("Device did not respond to poll", er);
+				accessory.updateReachability(false);
+			})
+		, this.config.pollInterval);
 }
 
-XiaomiMiioGateway.prototype.addConnectedDevice = async function(device) {
+XiaomiMiioGateway.prototype.addConnectedDevice = function(device) {
 	this.log.debug("Found a device", device);
-
+	
 	const accessory = this.findOrCreateAccessory(device);
 	abstractHomekit.decorateAccessory(accessory, device);
 		
@@ -81,6 +94,8 @@ XiaomiMiioGateway.prototype.addConnectedDevice = async function(device) {
 	} else {
 		this.log.debug(`Looks like we didn't add any services to this ${device.miioModel || device.model}, skipping it`);
 	}
+	
+	return accessory;
 }
 
 XiaomiMiioGateway.prototype.findOrCreateAccessory = function(device, name, onInit) {
