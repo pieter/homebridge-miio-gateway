@@ -41,15 +41,24 @@ function addIllumination(device, accessory) {
   const service = accessory.findOrCreateService(Service.LightSensor, "Light Sensor");
   const lightLevel = service.getCharacteristic(Characteristic.CurrentAmbientLightLevel);
 	
+	function updateValue(newVal) {
+		// Light level for the gateway always seems to be too high, so subtracting it here.
+		if (device.matches("type:miio:gateway")) {
+			lightLevel.updateValue(newVal.value - 270);
+		} else {
+			lightLevel.updateValue(newVal.value);
+		}
+		
+	}
 	device.on('illuminanceChanged', (newVal) => {
 		log.debug(`${accessory.displayName} illuminance changed`, newVal);
-		lightLevel.updateValue(newVal.value);
+		updateValue(newVal);
 	});
 
 	// Set initial illuminance
-	device.illuminance().then(x =>  {
-		log.debug(`Got initial illuminance for ${accessory.displayName}:`, x.value);
-		lightLevel.updateValue(x.value);
+	device.illuminance().then(val =>  {
+		log.debug(`Got initial illuminance for ${accessory.displayName}:`, val.value);
+		updateValue(val);
 	});
 }
 
