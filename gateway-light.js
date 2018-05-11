@@ -24,7 +24,7 @@ function addBrightnessControls(device, service) {
 	const brightness = service.getCharacteristic(Characteristic.Brightness);
   const onState = service.getCharacteristic(Characteristic.On);
 
-	let currentBrightness = 50;
+	device._currentBrightness = 50;
 
 	// Complicated logic here -- we need to sync both the power state
 	// and the brightness...
@@ -33,9 +33,9 @@ function addBrightnessControls(device, service) {
 	});
 
 	onState.on('set', async (val, cb) => {
-		log.debug("Setting ON state to:", val);
+		log.debug("Setting ON state to: ", val, " new value: ", device._currentBrightness);
 		if (val == true) {
-			await device.brightness('' + currentBrightness);
+			await device.brightness('' + device._currentBrightness);
 		} else {
 			await device.power(false);
 		}
@@ -44,12 +44,12 @@ function addBrightnessControls(device, service) {
 	});
 
 	brightness.on('get', (cb) => {
-		cb(null, currentBrightness);
+		cb(null, device._currentBrightness);
 	});
 
 	brightness.on('set', async (val, cb) => {
 		log.debug(`Setting brightness to:`, val);
-		currentBrightness = val;
+		device._currentBrightness = val;
 		await device.brightness('' + val);
 		cb();
 	});
@@ -62,14 +62,11 @@ function addBrightnessControls(device, service) {
 			return;
 		}
 		
-		currentBrightness = bVal;
+		device._currentBrightness = bVal;
 		brightness.updateValue(bVal);
 	}
 	device.on('brightnessChanged', updateBrightness);
-	device.brightness().then(bVal => {
-		currentBrightness = bVal;
-		brightness.updateValue(bVal);
-	})
+	device.brightness().then(updateBrightness);
 }
 
 function addColorControls(device, service) {
@@ -105,7 +102,13 @@ function addColorControls(device, service) {
 		const newColor = color.hsl(desiredHue || currentColor.hue, desiredSat || currentColor.saturation, 50);
 		log.debug("New color: ", newColor, newColor.rgb);
 		
-		await device.color(newColor.rgb);
+		// We Do our own RGB calculation here because the gateway might not have
+		// received the new brightness value yet.
+		const brightness = device._currentBrightness;
+		log.debug("Current brightness is: ", brightness);
+		const rgb = brightness << 24 | (newColor.rgb.red << 16) | (newColor.rgb.green << 8) | newColor.rgb.blue;
+
+		await device.gateway.call('set_rgb', [ rgb >>> 0 ], { refresh: [ 'rgb' ] });
 		
 		desiredSat = desiredHue = colorUpdate = null;
 	}
