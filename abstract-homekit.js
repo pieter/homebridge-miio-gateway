@@ -40,6 +40,7 @@ function addIllumination(device, accessory) {
 	
   const service = accessory.findOrCreateService(Service.LightSensor, "Light Sensor");
   const lightLevel = service.getCharacteristic(Characteristic.CurrentAmbientLightLevel);
+	lightLevel.setProps({ maxValue: 1200 });
 	
 	function updateValue(newVal) {
 		// Light level for the gateway always seems to be too high, so subtracting it here.
