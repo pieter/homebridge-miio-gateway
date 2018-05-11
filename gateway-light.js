@@ -102,10 +102,10 @@ function addColorControls(device, service) {
 		let currentColor = (await device.color()).hsl;
 		log.debug("Current color:", currentColor);
 
-		const newColor = color.hsl(desiredHue || currentColor.hue, desiredSat || currentColor.saturation, currentColor.lightness);
-		log.debug("New color: ", newColor);
+		const newColor = color.hsl(desiredHue || currentColor.hue, desiredSat || currentColor.saturation, 50);
+		log.debug("New color: ", newColor, newColor.rgb);
 		
-		await device.color(newColor);
+		await device.color(newColor.rgb);
 		
 		desiredSat = desiredHue = colorUpdate = null;
 	}
